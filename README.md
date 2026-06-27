@@ -3,9 +3,7 @@
 > **IEEE Computer Society - Launch 26 Phase 01 Challenge**  
 > University of Kelaniya
 
-An interplanetary routing protocol simulator that models data packet transmission
-across the Zeta-26 star system - a 6-planet network with Base-N codex translations,
-multi-hop latency calculations, and chaos-resilient routing.
+An interplanetary routing protocol simulator that models data packet transmission across the Zeta-26 star system - a 6-planet network with Base-N codex translations, multi-hop latency calculations, and chaos-resilient routing.
 
 ## Quick Start
 
@@ -21,14 +19,41 @@ pip install pygame-ce pytest
 ### Running the Demo
 ```bash
 # Interactive GUI mode (recommended for demo video)
-python src/main.py
+python relic-ring-protocol/src/main.py
 
 # Terminal-only mode (all milestones verified)
-python src/main.py --headless
+python relic-ring-protocol/src/main.py --headless
 
 # Run all tests
-python -m pytest tests/ -v
+python -m pytest relic-ring-protocol/tests/ -v
 ```
+
+## Features Implemented
+
+### 1. Robust Network & Physics Modeling
+- **Physics Engine**: Implements Distance (L), Void Travel Time (Tv), and Crust Transit (Tp) formulas with extreme precision.
+- **Dynamic Graph Builder**: Maps hyperspace topology and calculates adjacency matrices based on the `Lmax` constraint.
+- **Node Validation**: Strictly models planetary environments including atmosphere thicknesses and refraction indices.
+
+### 2. Advanced Routing & Resilience
+- **Dijkstra & A* (OSPF Standard)**: Cross-validated shortest-path algorithms. A* utilizes a provably admissible heuristic based on the speed of light.
+- **Yen's K=3 Shortest Paths**: Pre-computes alternative routes for O(1) failover when chaos events strike.
+- **Strict Endpoint Failure Logic**: Simulates transmission blockage if the source/destination is offline during pre-flight checks, and supports **mid-flight aborts** if endpoints are killed while a packet is actively in transit.
+
+### 3. Industrial Skeuomorphism UI (Pygame)
+- **Neumorphic Design System**: Uses customized `NeuButton`, drop-shadows, and `draw_card_with_screws` to present a clean, tactile control panel layout.
+- **Hover Tooltips**: Instantly inspect any node's properties (Codex, Towers, Refraction, Active Status) simply by hovering over it on the star map.
+- **Interactive Routing Engine**: Live metrics on the bottom-right panel displaying the chosen algorithm, visited nodes, edges checked, and execution time (ms).
+
+### 4. Special Modes
+- **Judge Mode**: A dedicated mode built specifically for evaluation. Enabling it visually breaks down the transmission lifecycle step-by-step using a dedicated Sequence Indicator Checklist floating on the right side.
+- **Chaos Mode**: Click `KILL NODE` and select any planet on the map to take it offline. Instantly triggers dynamic route re-calculation (or transmission aborts depending on endpoint relevance).
+
+### 5. Deep Packet Inspection & Reporting
+- **Multi-Base Codex Engine**: Translates payloads from Base 10 (ASCII) into planetary Bases (e.g., Base 16, Base 8, Base 14) and logs the exact string sent across the void.
+- **Hop Log**: Visualizes the exact entry and exit towers used on each planet as the packet travels.
+- **Transmission Status Panel**: Replaces binary booleans with a full lifecycle Enum state-machine (`READY`, `BLOCKED`, `IN_TRANSIT`, `DELIVERED`, `ABORTED`, `UNDELIVERABLE`, `FAILED`).
+- **Auto-Reports**: Generates `.txt` reports in the `reports/` folder capturing the entire journey summary per packet.
 
 ## Architecture
 
@@ -91,34 +116,30 @@ graph_builder.py --> routing_engine.py
 | `src/graph_builder.py` | Builds adjacency list, finds optimal tower pairs, detects bridges | Member 2 |
 | `src/routing_engine.py` | Dijkstra + A* with shared `_build_hop_log_entry()` utility | Member 2 |
 | `src/resilience_engine.py` | Yen's K=3 shortest paths, kill/revive nodes, DTN queue | Member 2 |
-| `src/packet_codec.py` | Base-N translators, Packet schema, hop_log enrichment | Member 3 |
+| `src/packet_codec.py` | Base-N translators, Packet schema, hop_log enrichment, TransmissionStatus | Member 3 |
 | `src/visualizer.py` | Pygame Industrial Skeuomorphism interactive UI | Member 3 |
 | `src/main.py` | Demo orchestrator for M1-M4 milestones | Member 3 |
 
 ## Algorithm Justification
 
 ### Why Dijkstra? (OSPF Standard)
-Dijkstra's algorithm is the industry standard for shortest-path routing in real-world
-OSPF (Open Shortest Path First) protocols. It provides:
+Dijkstra's algorithm is the industry standard for shortest-path routing in real-world OSPF (Open Shortest Path First) protocols. It provides:
 - **Guaranteed optimality** for non-negative edge weights
 - **O((V+E) log V)** time complexity with binary heap
 - **Deterministic results** for reproducible latency calculations
 
 ### A* Heuristic Admissibility Proof
 The A* heuristic `h(n) = straight_line_distance(n, dest) / C` is **provably admissible**:
-
 1. The shortest physical distance between two planets is a straight line
 2. The fastest possible speed is the speed of light `C`
-3. Actual paths traverse atmospheres (n > 1.0 slows light), fiber cables (0.67c),
-   and incur tower processing delays (7ms each)
+3. Actual paths traverse atmospheres (n > 1.0 slows light), fiber cables (0.67c), and incur tower processing delays (7ms each)
 4. Therefore: `h(n) = distance/C <= actual_cost` always holds
 5. Since h(n) never overestimates, A* is optimal
 
 **Verification:** All 30 directed pairs cross-validated: Dijkstra cost == A* cost.
 
 ### Yen's K=3 for O(1) Failover
-Pre-computing 3 shortest paths per source-destination pair enables instant failover
-when a node is killed during the Chaos Test, without re-running Dijkstra at failure time.
+Pre-computing 3 shortest paths per source-destination pair enables instant failover when a node is killed during the Chaos Test, without re-running Dijkstra at failure time.
 
 ## Physical Constants
 
