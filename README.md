@@ -32,7 +32,7 @@ An interplanetary routing protocol simulator that models data packet transmissio
 - Verify routing algorithms step-by-step for judges.
 - Support interactive chaos testing through live node failures.
 
-## 🚀 FOR JUDGES: How to Evaluate (2 Simple Steps)
+##  FOR JUDGES: How to Evaluate (2 Simple Steps)
 
 **Step 1: Install Dependencies**
 ```bash
