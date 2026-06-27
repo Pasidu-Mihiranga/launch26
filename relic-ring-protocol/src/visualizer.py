@@ -37,6 +37,7 @@ from packet_codec import (
 COLORS = {
     'chassis':       (224, 229, 236),
     'panel':         (240, 242, 245),
+    'teal_panel':    (210, 235, 230),
     'recessed':      (209, 217, 230),
     'text_primary':  (45, 52, 54),
     'text_muted':    (74, 85, 104),
@@ -1446,13 +1447,10 @@ class RelicRingVisualizer:
         s = self.scale
         pad = int(10 * s)
         
-        # 1. Sequence Indicator Checklist (Top right)
-        check_w = int(240 * s)
-        check_h = int(140 * s)
-        cx = self.win_w - check_w - pad
-        cy = int(HEADER_H * s) + pad
+        # 1. Sequence Indicator Checklist (Top right - overlays Universe Meta exactly)
+        cx, cy, check_w, check_h = self.universe_meta_rect
         
-        draw_card_with_screws(self.screen, (cx, cy, check_w, check_h), title="JUDGE MODE", title_font=self.font_card_title)
+        draw_card_with_screws(self.screen, self.universe_meta_rect, color=COLORS['teal_panel'], title="JUDGE MODE", title_font=self.font_card_title)
         src_active = self.planets[self.src_dropdown.value].is_active
         dst_active = self.planets[self.dst_dropdown.value].is_active
         
@@ -1483,14 +1481,15 @@ class RelicRingVisualizer:
             self.screen.blit(txt, (cx + 15, y_offset))
             y_offset += int(18 * s)
             
-        # 2. Routing Engine Panel (Bottom right)
-        panel_w = int(240 * s)
-        panel_h = int(160 * s)
+        # 2. Routing Engine Panel (Bottom right - overlays right half of Codec panel exactly)
+        codec_x, codec_y, codec_w, codec_h = self.codec_panel_rect
+        half_w = (codec_w - pad) // 2
+        rx = codec_x + half_w + pad
+        ry = codec_y
+        rw = half_w
+        rh = codec_h
         
-        rx = self.win_w - panel_w - pad
-        ry = self.win_h - int(CONTROL_H * s) - panel_h - pad
-        
-        draw_card_with_screws(self.screen, (rx, ry, panel_w, panel_h), title="ROUTING ENGINE", title_font=self.font_card_title)
+        draw_card_with_screws(self.screen, (rx, ry, rw, rh), color=COLORS['teal_panel'], title="ROUTING ENGINE", title_font=self.font_card_title)
         
         if self.current_route:
             r = self.current_route
