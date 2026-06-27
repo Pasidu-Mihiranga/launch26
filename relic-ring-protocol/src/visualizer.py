@@ -71,11 +71,11 @@ COLORS = {
     'control_bg':    (55, 63, 75),
 }
 
-# Layout Constants (designed for 1400x900, scaled proportionally)
-BASE_W, BASE_H = 1400, 900
+# Layout Constants (designed for 1700x950, scaled proportionally)
+BASE_W, BASE_H = 1700, 950
 HEADER_H = 50
 CONTROL_H = 60
-MAP_W_RATIO = 0.58  # Left panel takes 58% width
+MAP_W_RATIO = 0.52  # Left panel takes 52% width
 PANEL_PAD = 12
 CARD_RADIUS = 12
 SCREW_SIZE = 4
@@ -343,24 +343,20 @@ class RelicRingVisualizer:
     Implements the Industrial Skeuomorphism design system.
     """
 
-    def __init__(self, metadata, planets, resilience_manager):
-        self.metadata = metadata
-        self.planets_list = planets
-        self.planets = {p.id: p for p in planets}
-        self.resilience = resilience_manager
+    def __init__(self, config_path: str):
+        self.config_path = config_path
 
         # Auto-scale for screen
         pygame.init()
         info = pygame.display.Info()
         screen_w, screen_h = info.current_w, info.current_h
 
-        if screen_w < BASE_W + 50 or screen_h < BASE_H + 80:
-            self.win_w = min(1280, screen_w - 80)
-            self.win_h = min(800, screen_h - 80)
-            self.scale = self.win_w / BASE_W
-        else:
-            self.win_w, self.win_h = BASE_W, BASE_H
-            self.scale = 1.0
+        # Clamp to screen with margins
+        self.win_w = min(BASE_W, screen_w - 80)
+        self.win_h = min(BASE_H, screen_h - 80)
+        
+        # Compute scale factor
+        self.scale = min(self.win_w / BASE_W, self.win_h / BASE_H)
 
         self.screen = pygame.display.set_mode((self.win_w, self.win_h))
         pygame.display.set_caption("RELIC RING PROTOCOL  -  Zeta-26 Star System")
@@ -383,6 +379,17 @@ class RelicRingVisualizer:
         self.anim_progress = 0.0
         self.anim_speed = 0.008   # per tick (about 3s per hop at 60fps)
         self.anim_path_coords = []
+        
+        self.judge_mode = False
+        self.packet_counter = 0
+        
+        # Toasts
+        self.toasts = []
+        
+        self.clock = pygame.time.Clock()
+
+        # M1: Execute Real Boot Sequence
+        self._run_boot_sequence()
 
         # Planet screen positions
         self._calculate_planet_positions()
@@ -390,10 +397,62 @@ class RelicRingVisualizer:
         # UI Elements
         self._init_ui_elements()
 
-        # Build initial graph for edge rendering
-        self.graph = build_network_graph(self.metadata, self.planets_list)
+    def _draw_boot_frame(self, title: str, messages: list):
+        self.screen.fill(COLORS['bg'])
+        
+        # Center coordinates
+        cx, cy = self.win_w // 2, self.win_h // 2
+        
+        # Title
+        title_surf = self.font_title.render("RELIC RING PROTOCOL", True, COLORS['accent'])
+        self.screen.blit(title_surf, (cx - title_surf.get_width() // 2, cy - 100))
+        
+        sub_surf = self.font_sub.render(title, True, COLORS['text_muted'])
+        self.screen.blit(sub_surf, (cx - sub_surf.get_width() // 2, cy - 60))
+        
+        # Messages
+        for i, msg in enumerate(messages):
+            msg_surf = self.font_mono.render(msg, True, COLORS['text_primary'])
+            self.screen.blit(msg_surf, (cx - 150, cy + i * 25))
+            
+        pygame.display.flip()
 
-        self.clock = pygame.time.Clock()
+    def _run_boot_sequence(self):
+        messages = []
+        self._draw_boot_frame("Initializing Zeta-26 Star System...", messages)
+        time_module.sleep(0.5)
+        
+        # Step 1: Read JSON
+        messages.append("Loading universe-config.json...")
+        self._draw_boot_frame("Reading metadata", messages)
+        self.metadata, self.planets_list = load_universe_config(self.config_path)
+        self.planets = {p.id: p for p in self.planets_list}
+        time_module.sleep(0.5)
+        
+        messages[-1] = f"[OK] Metadata loaded: {self.metadata.system_name}"
+        messages.append(f"Creating {len(self.planets_list)} planets...")
+        self._draw_boot_frame("Constructing celestial bodies", messages)
+        time_module.sleep(0.5)
+        
+        # Step 2: Build Graph
+        messages[-1] = f"[OK] {len(self.planets_list)} planet objects initialized"
+        messages.append("Building network graph...")
+        self._draw_boot_frame("Mapping hyperspace topology", messages)
+        self.graph = build_network_graph(self.metadata, self.planets_list)
+        edges = sum(len(e) for e in self.graph.adjacency.values())
+        time_module.sleep(0.5)
+        
+        # Step 3: Load Resilience Engine
+        messages[-1] = f"[OK] Network graph built with {edges} directed edges"
+        messages.append("Loading Resilience Engine...")
+        self._draw_boot_frame("Initializing routing algorithms", messages)
+        self.resilience = ResilienceManager(self.metadata, self.planets_list)
+        time_module.sleep(0.5)
+        
+        messages[-1] = "[OK] Resilience Engine active"
+        messages.append("System Ready.")
+        self._draw_boot_frame("All systems nominal", messages)
+        time_module.sleep(1.0)
 
     def _init_fonts(self):
         """Initialize fonts - use system monospace."""
@@ -437,11 +496,26 @@ class RelicRingVisualizer:
 
         panel_x = map_w
         panel_w = self.win_w - map_w - 2 * pad
-        panel_h_each = (body_h - 4 * pad) // 3
-
-        self.hop_panel_rect = (panel_x, body_top + pad, panel_w, panel_h_each)
-        self.latency_panel_rect = (panel_x, body_top + 2 * pad + panel_h_each, panel_w, panel_h_each)
-        self.codec_panel_rect = (panel_x, body_top + 3 * pad + 2 * panel_h_each, panel_w, panel_h_each)
+        
+        # 5 panels layout
+        # Row 1 (top): Packet Status (left 50%), Universe Meta (right 50%) - 20% height
+        row1_h = int((body_h - 5 * pad) * 0.20)
+        half_w = (panel_w - pad) // 2
+        
+        self.packet_status_rect = (panel_x, body_top + pad, half_w, row1_h)
+        self.universe_meta_rect = (panel_x + half_w + pad, body_top + pad, half_w, row1_h)
+        
+        # Row 2: Hop log - 28% height
+        row2_h = int((body_h - 5 * pad) * 0.28)
+        self.hop_panel_rect = (panel_x, body_top + 2 * pad + row1_h, panel_w, row2_h)
+        
+        # Row 3: Latency - 28% height
+        row3_h = int((body_h - 5 * pad) * 0.28)
+        self.latency_panel_rect = (panel_x, body_top + 3 * pad + row1_h + row2_h, panel_w, row3_h)
+        
+        # Row 4: Codec - Remaining height
+        row4_h = body_h - 5 * pad - row1_h - row2_h - row3_h
+        self.codec_panel_rect = (panel_x, body_top + 4 * pad + row1_h + row2_h + row3_h, panel_w, row4_h)
 
         self.control_rect = (0, self.win_h - ctrl_h, self.win_w, ctrl_h)
 
@@ -518,9 +592,17 @@ class RelicRingVisualizer:
 
         # Revive All button
         self.revive_btn = NeuButton(
-            (x_cursor, element_y, int(120 * s), element_h),
+            (x_cursor, element_y, int(110 * s), element_h),
             "REVIVE ALL", color=COLORS['button_dark'],
             fg_color=COLORS['led_green'], font=self.font_btn
+        )
+        x_cursor += int(120 * s)
+        
+        # Judge Mode button
+        self.judge_btn = NeuButton(
+            (x_cursor, element_y, int(120 * s), element_h),
+            "JUDGE MODE", color=COLORS['button_dark'],
+            fg_color=COLORS['text_muted'], font=self.font_btn
         )
 
     # ──────────────────────────────────────────────────────────────
@@ -605,6 +687,10 @@ class RelicRingVisualizer:
         # Map title overlay
         map_title = self.font_card_title.render("UNIVERSE STAR MAP", True, (150, 160, 170))
         self.screen.blit(map_title, (mx + 10, my + 6))
+        
+        # Draw Tooltip overlay if hovering
+        if self.hovered_planet:
+            self._draw_planet_tooltip(self.planets[self.hovered_planet], mouse_pos)
 
     def _draw_edges(self):
         """Draw route edges between connected planets."""
@@ -678,11 +764,25 @@ class RelicRingVisualizer:
         # Tower dots
         n_towers = planet.active_towers
         tower_radius = base_radius + int(6 * s)
+        
+        used_towers = set()
+        if self.current_packet and self.current_packet.hop_log:
+            for hop in self.current_packet.hop_log:
+                if hop['planet_id'] == planet.id:
+                    used_towers.add(hop['entry_tower'])
+                    used_towers.add(hop['exit_tower'])
+                    
         for i in range(n_towers):
+            tower_id = i + 1
             angle = (2 * math.pi * i / n_towers) - math.pi / 2  # Start from top
             tx = int(cx + tower_radius * math.cos(angle))
             ty = int(cy + tower_radius * math.sin(angle))
-            pygame.draw.circle(self.screen, COLORS['tower_dot'], (tx, ty), int(2.5 * s))
+            
+            t_color = COLORS['accent'] if tower_id in used_towers else COLORS['tower_dot']
+            t_rad = int(4 * s) if tower_id in used_towers else int(2.5 * s)
+            pygame.draw.circle(self.screen, t_color, (tx, ty), t_rad)
+            if tower_id in used_towers:
+                pygame.draw.circle(self.screen, COLORS['packet_glow'], (tx, ty), t_rad + 2, 1)
 
         # Label
         label = self.font_planet.render(planet.id.upper(), True, (200, 210, 220))
@@ -701,6 +801,39 @@ class RelicRingVisualizer:
             pygame.draw.circle(self.screen, COLORS['led_red'], (cx, cy), base_radius + 8, 2)
             pygame.draw.line(self.screen, COLORS['led_red'], (cx - 15, cy), (cx + 15, cy), 1)
             pygame.draw.line(self.screen, COLORS['led_red'], (cx, cy - 15), (cx, cy + 15), 1)
+
+    def _draw_planet_tooltip(self, planet, mouse_pos):
+        """Draws a tooltip with detailed planet info."""
+        lines = [
+            f"Node  : {planet.id.upper()}",
+            f"Active: {'YES' if planet.is_active else 'NO'}",
+            f"Codex : Base {planet.codex}",
+            f"Atmos : {planet.atmosphere_thickness_km:,.0f}km",
+            f"Refrac: {planet.refraction_index:.2f}",
+            f"Towers: {planet.active_towers}"
+        ]
+        
+        box_w = int(180 * self.scale)
+        box_h = int(120 * self.scale)
+        box_x = mouse_pos[0] + 15
+        box_y = mouse_pos[1] + 15
+        
+        # Keep tooltip on screen
+        if box_x + box_w > self.win_w: box_x = mouse_pos[0] - box_w - 15
+        if box_y + box_h > self.win_h: box_y = mouse_pos[1] - box_h - 15
+        
+        # Tooltip BG
+        pygame.draw.rect(self.screen, COLORS['header_bg'], (box_x, box_y, box_w, box_h), border_radius=6)
+        pygame.draw.rect(self.screen, COLORS['shadow_deep'], (box_x, box_y, box_w, box_h), 1, border_radius=6)
+        
+        # Text
+        ty = box_y + 10
+        for line in lines:
+            txt = self.font_mono_sm.render(line, True, COLORS['text_primary'] if "Active: YES" not in line else COLORS['led_green'])
+            if "Active: NO" in line:
+                txt = self.font_mono_sm.render(line, True, COLORS['led_red'])
+            self.screen.blit(txt, (box_x + 10, ty))
+            ty += int(16 * self.scale)
 
     def _draw_packet_animation(self):
         """Draw the animated packet dot traveling along the route."""
@@ -742,6 +875,58 @@ class RelicRingVisualizer:
         pygame.draw.circle(glow_surf, (*COLORS['accent'], 200), (20, 20), 5)
         self.screen.blit(glow_surf, (px - 20, py - 20))
 
+    def _draw_packet_status_panel(self):
+        """Draw the TRANSMISSION STATUS panel."""
+        draw_card_with_screws(self.screen, self.packet_status_rect,
+                              title="TRANSMISSION STATUS", title_font=self.font_card_title)
+        x, y, w, h = self.packet_status_rect
+        if not self.current_route:
+            empty = self.font_mono_sm.render("Awaiting Transmission", True, COLORS['text_muted'])
+            self.screen.blit(empty, (x + 22, y + 35))
+            return
+            
+        if not self.current_route.is_reachable:
+            empty = self.font_body.render("Status: UNDELIVERABLE (No Path)", True, COLORS['led_red'])
+            self.screen.blit(empty, (x + 22, y + 35))
+            return
+            
+        pkt = self.current_packet
+        if not pkt: return
+        
+        status = "DELIVERED" if pkt.current_id == pkt.destination_id else "ROUTING"
+        
+        pkt_id_txt = self.font_mono_sm.render(f"Packet ID: #{pkt.packet_id}", True, COLORS['text_muted'])
+        self.screen.blit(pkt_id_txt, (x + 22, y + 35))
+        
+        status_txt = self.font_body.render(f"Status: {status}", True, COLORS['accent'])
+        self.screen.blit(status_txt, (x + 22, y + 55))
+        
+        route = self.current_route
+        if route:
+            latency = f"Total Latency: {route.total_latency_s:.5f}s"
+            lat_txt = self.font_mono_sm.render(latency, True, COLORS['text_primary'])
+            self.screen.blit(lat_txt, (x + 22, y + 75))
+            
+            alg = f"Algorithm: {route.algorithm_used.upper()}"
+            alg_txt = self.font_mono_sm.render(alg, True, COLORS['text_primary'])
+            self.screen.blit(alg_txt, (x + 22, y + 95))
+
+    def _draw_universe_meta_panel(self):
+        """Draw the UNIVERSE METRICS panel."""
+        draw_card_with_screws(self.screen, self.universe_meta_rect,
+                              title="UNIVERSE METRICS", title_font=self.font_card_title)
+        x, y, w, h = self.universe_meta_rect
+        
+        meta = self.metadata
+        speed_txt = self.font_mono_sm.render(f"Light Speed: {meta.speed_of_light_kms:,.0f} km/s", True, COLORS['text_primary'])
+        self.screen.blit(speed_txt, (x + 22, y + 35))
+        
+        lmax_txt = self.font_mono_sm.render(f"Max Void Hop (Lmax): {meta.max_void_hop_distance_km:,.0f} km", True, COLORS['text_primary'])
+        self.screen.blit(lmax_txt, (x + 22, y + 55))
+        
+        fiber_txt = self.font_mono_sm.render(f"Fiber Speed: {meta.fiber_speed_fraction}c", True, COLORS['text_primary'])
+        self.screen.blit(fiber_txt, (x + 22, y + 75))
+
     def _draw_hop_log_panel(self):
         """Draw the HOP LOG panel with a scrollable table."""
         draw_card_with_screws(self.screen, self.hop_panel_rect,
@@ -754,8 +939,8 @@ class RelicRingVisualizer:
             return
 
         # Table header
-        headers = ["Planet", "T_in", "T_out", "Fiber(s)", "Void(s)", "Base"]
-        col_widths = [int(c * self.scale) for c in [80, 45, 45, 75, 80, 40]]
+        headers = ["Planet", "Next", "TIn", "TOut", "Fiber", "Tower", "Atmos", "Void", "Total"]
+        col_widths = [int(c * self.scale) for c in [70, 70, 40, 40, 70, 70, 70, 70, 80]]
         row_h = int(18 * self.scale)
         table_x = x + 22
         table_y = y + 30
@@ -780,14 +965,19 @@ class RelicRingVisualizer:
                 pygame.draw.rect(self.screen, (*COLORS['accent'], 20),
                                  (table_x - 2, ry - 2, sum(col_widths) + 4, row_h), border_radius=3)
                 row_color = COLORS['accent']
-
+            
+            hop_total = hop['fiber_time_s'] + hop['processing_time_s'] + hop.get('atmosphere_time_s', 0) + hop.get('pure_void_time_s', 0)
+            
             values = [
-                hop["planet_id"][:8],
-                str(hop["entry_tower"]),
-                str(hop["exit_tower"]),
+                hop["planet_id"][:7],
+                hop.get("next_hop", "---")[:7],
+                f"T{hop['entry_tower']}",
+                f"T{hop['exit_tower']}",
                 f"{hop['fiber_time_s']:.4f}",
-                f"{hop['void_time_s']:.2f}",
-                str(hop["codex_base"]),
+                f"{hop['processing_time_s']:.4f}",
+                f"{hop.get('atmosphere_time_s', 0):.4f}",
+                f"{hop.get('pure_void_time_s', 0):.2f}",
+                f"{hop_total:.4f}"
             ]
 
             for i, val in enumerate(values):
@@ -809,13 +999,15 @@ class RelicRingVisualizer:
         # Aggregate latency components
         total_fiber = sum(h_d.get("fiber_time_s", 0) for h_d in self.current_route.hop_details)
         total_proc = sum(h_d.get("processing_time_s", 0) for h_d in self.current_route.hop_details)
-        total_void = sum(h_d.get("void_time_s", 0) for h_d in self.current_route.hop_details)
+        total_void = sum(h_d.get("pure_void_time_s", 0) for h_d in self.current_route.hop_details)
+        total_atmos = sum(h_d.get("atmosphere_time_s", 0) for h_d in self.current_route.hop_details)
         total_all = self.current_route.total_latency_s
 
         components = [
-            ("Void",    total_void, COLORS['bar_void']),
-            ("Fiber",   total_fiber, COLORS['bar_fiber']),
-            ("Tower",   total_proc, COLORS['bar_tower']),
+            ("Void",    total_void, COLORS['bar_void'], "L / c"),
+            ("Fiber",   total_fiber, COLORS['bar_fiber'], "S*2piR / N / 0.67c"),
+            ("Tower",   total_proc, COLORS['bar_tower'], "M * 7ms"),
+            ("Atmos",   total_atmos, COLORS['bar_atmos'], "(atm * n) / c"),
         ]
 
         inner_pad = 22
@@ -825,29 +1017,35 @@ class RelicRingVisualizer:
         usable_w = w - inner_pad - right_pad  # total usable width inside card
         label_w = int(55 * self.scale)         # space for "Void  " etc.
         value_w = int(95 * self.scale)         # space for "188.5260s" etc.
-        bar_area_w = usable_w - label_w - value_w - 8  # remaining for the bar itself
-        bar_h = int(20 * self.scale)
-        gap = int(8 * self.scale)
+        formula_w = int(180 * self.scale)      # space for formulas
+        bar_area_w = usable_w - label_w - value_w - formula_w - 8  # remaining for the bar itself
+        bar_h = int(14 * self.scale)
+        gap = int(6 * self.scale)
 
         max_val = max(total_all, 0.001)
 
-        for i, (label, value, color) in enumerate(components):
+        for i, (label, value, color, formula) in enumerate(components):
             by = bar_y + i * (bar_h + gap)
             # Label (left)
             lbl = self.font_mono_sm.render(f"{label:6s}", True, COLORS['text_muted'])
-            self.screen.blit(lbl, (bar_x, by + 2))
+            self.screen.blit(lbl, (bar_x, by + 1))
+
+            # Formula (next to label)
+            fx = bar_x + label_w
+            frm = self.font_mono_sm.render(formula, True, (120, 130, 140))
+            self.screen.blit(frm, (fx, by + 1))
 
             # Bar (middle)
-            bx = bar_x + label_w
+            bx = fx + formula_w
             bw = int((value / max_val) * bar_area_w)
             pygame.draw.rect(self.screen, COLORS['recessed'], (bx, by, bar_area_w, bar_h), border_radius=4)
             pygame.draw.rect(self.screen, color, (bx, by, max(bw, 2), bar_h), border_radius=4)
 
-            # Value label (right, right-aligned within value_w zone)
+            # Value label (right)
             val_str = f"{value:.4f}s"
             val_txt = self.font_mono_sm.render(val_str, True, COLORS['text_primary'])
             val_x = bx + bar_area_w + 6
-            self.screen.blit(val_txt, (val_x, by + 2))
+            self.screen.blit(val_txt, (val_x, by + 1))
 
         # Total
         total_y = bar_y + len(components) * (bar_h + gap) + 4
@@ -878,21 +1076,34 @@ class RelicRingVisualizer:
         line_y += 6
 
         # Per-hop codex translations
-        max_lines = (h - 60) // line_h
-        for i, hop in enumerate(self.current_packet.hop_log[:max_lines]):
+        max_hops = (h - 70) // (line_h * 3)
+        for i, hop in enumerate(self.current_packet.hop_log[:max_hops]):
             codex_vals = hop.get("payload_in_codex", [])
-            preview = " ".join(codex_vals[:6])
-            if len(codex_vals) > 6:
-                preview += " ..."
+            bin_stream = hop.get("binary_stream", "")
+            asc_val = hop.get("payload_ascii", "")
+            
+            preview = " ".join(codex_vals[:8])
+            if len(codex_vals) > 8: preview += " ..."
+            
+            bin_preview = bin_stream[:40]
+            if len(bin_stream) > 40: bin_preview += "..."
+            
+            asc_preview = asc_val[:20]
+            if len(asc_val) > 20: asc_preview += "..."
 
             is_dest = (hop["void_distance_km"] == 0 and i == len(self.current_packet.hop_log) - 1)
-            prefix = ">> " if is_dest else "   "
             color = COLORS['accent'] if is_dest else COLORS['text_primary']
 
-            line = f"{prefix}B{hop['codex_base']:2d} [{hop['planet_id'][:6]:6s}]: {preview}"
-            txt = self.font_mono_sm.render(line, True, color)
-            self.screen.blit(txt, (x + 22, line_y))
+            line1 = f"[{hop['planet_id'][:6]:6s}] Base {hop['codex_base']:2d}: {preview}"
+            line2 = f"         Binary : {bin_preview}"
+            line3 = f"         ASCII  : {asc_preview}"
+            
+            self.screen.blit(self.font_mono_sm.render(line1, True, color), (x + 22, line_y))
             line_y += line_h
+            self.screen.blit(self.font_mono_sm.render(line2, True, COLORS['text_muted']), (x + 22, line_y))
+            line_y += line_h
+            self.screen.blit(self.font_mono_sm.render(line3, True, COLORS['text_muted']), (x + 22, line_y))
+            line_y += line_h + 4
 
     def _draw_control_bar(self):
         """Draw the bottom control bar."""
@@ -922,6 +1133,7 @@ class RelicRingVisualizer:
         self.send_btn.draw(self.screen)
         self.kill_btn.draw(self.screen)
         self.revive_btn.draw(self.screen)
+        self.judge_btn.draw(self.screen)
 
     # ──────────────────────────────────────────────────────────────
     # Action Handlers
@@ -951,16 +1163,24 @@ class RelicRingVisualizer:
         # Simulate packet journey
         try:
             packet = simulate_packet_journey(payload, route, self.planets, self.metadata)
+            self.packet_counter += 1
+            packet.packet_id = f"{self.packet_counter:03d}"
             self.current_packet = packet
+            
+            # Auto-save report
+            os.makedirs("reports", exist_ok=True)
+            report_path = f"reports/transmission_{packet.packet_id}.txt"
+            with open(report_path, "w") as f:
+                f.write(f"Packet ID: {packet.packet_id}\n")
+                f.write(get_journey_summary(packet))
+                f.write(f"\nTotal Latency: {route.total_latency_s:.9f}s\n")
+                
+            self._add_toast(f"Packet #{packet.packet_id} routed to {dst}", "success")
 
-            # Print to terminal for demo
-            print("\n" + get_journey_summary(packet))
-            print(f"Total Latency: {route.total_latency_s:.9f}s")
-            print(f"Algorithm: {route.algorithm_used}")
-            print(f"Path: {' -> '.join(route.path)}")
         except Exception as e:
             print(f"[ERROR] Packet simulation failed: {e}")
             self.current_packet = None
+            self._add_toast("Routing Failed!", "error")
 
         # Start animation
         self.anim_path_coords = [self.planet_screen_pos[pid] for pid in route.path if pid in self.planet_screen_pos]
@@ -980,6 +1200,7 @@ class RelicRingVisualizer:
                 [p for p in self.planets.values() if p.is_active])
             print(f"\n[CHAOS] Killed node: {planet_id}")
             print(f"  Convergence: {log.get('convergence_time_ms', 0):.2f}ms")
+            self._add_toast(f"Killed {planet_id}", "error")
 
             # Auto-reroute if there's a current route
             if self.current_route:
@@ -998,8 +1219,55 @@ class RelicRingVisualizer:
                 except Exception:
                     pass
         self.graph = build_network_graph(self.metadata, list(self.planets.values()))
+        self._add_toast("All nodes revived", "success")
         if self.current_route:
             self._action_send_packet()
+
+    # ──────────────────────────────────────────────────────────────
+    # Toast Notifications
+    # ──────────────────────────────────────────────────────────────
+
+    def _add_toast(self, message, type="info"):
+        # types: info, success, error
+        self.toasts.append({
+            "msg": message,
+            "type": type,
+            "timer": 180  # 3 seconds at 60fps
+        })
+
+    def _draw_toasts(self):
+        y_offset = 20
+        active_toasts = []
+        for t in self.toasts:
+            t["timer"] -= 1
+            if t["timer"] > 0:
+                active_toasts.append(t)
+                
+                # Draw
+                color = COLORS['led_green'] if t['type'] == 'success' else (COLORS['led_red'] if t['type'] == 'error' else COLORS['text_primary'])
+                txt = self.font_body.render(t["msg"], True, color)
+                
+                # Fade out last 30 frames
+                alpha = 255 if t["timer"] > 30 else int((t["timer"] / 30) * 255)
+                
+                bg_w = txt.get_width() + 40
+                bg_h = 40
+                bg_x = self.win_w // 2 - bg_w // 2
+                
+                surf = pygame.Surface((bg_w, bg_h), pygame.SRCALPHA)
+                pygame.draw.rect(surf, (*COLORS['header_bg'], alpha), (0, 0, bg_w, bg_h), border_radius=8)
+                pygame.draw.rect(surf, (*color, alpha), (0, 0, bg_w, bg_h), 1, border_radius=8)
+                
+                txt_surf = pygame.Surface(txt.get_size(), pygame.SRCALPHA)
+                txt_surf.blit(txt, (0, 0))
+                txt_surf.set_alpha(alpha)
+                
+                surf.blit(txt_surf, (20, 10))
+                self.screen.blit(surf, (bg_x, y_offset))
+                
+                y_offset += bg_h + 10
+                
+        self.toasts = active_toasts
 
     # ──────────────────────────────────────────────────────────────
     # Main Event Loop
@@ -1044,6 +1312,17 @@ class RelicRingVisualizer:
 
                     if self.revive_btn.handle_event(event):
                         self._action_revive_all()
+                        
+                    if self.judge_btn.handle_event(event):
+                        self.judge_mode = not self.judge_mode
+                        if self.judge_mode:
+                            self.judge_btn.fg_color = COLORS['led_green']
+                            self.anim_speed = 0.003
+                            self._add_toast("Judge Mode Enabled", "info")
+                        else:
+                            self.judge_btn.fg_color = COLORS['text_muted']
+                            self.anim_speed = 0.008
+                            self._add_toast("Judge Mode Disabled", "info")
 
                     # Planet click for kill mode
                     if (event.type == pygame.MOUSEBUTTONDOWN and
@@ -1066,10 +1345,14 @@ class RelicRingVisualizer:
 
                 self._draw_header()
                 self._draw_star_map()
+                self._draw_packet_status_panel()
+                self._draw_universe_meta_panel()
                 self._draw_hop_log_panel()
                 self._draw_latency_panel()
                 self._draw_codec_panel()
                 self._draw_control_bar()
+                
+                self._draw_toasts()
 
                 pygame.display.flip()
                 self.clock.tick(60)

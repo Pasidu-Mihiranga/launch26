@@ -211,7 +211,7 @@ class RelicRingDemo:
         print()
 
         from visualizer import RelicRingVisualizer
-        viz = RelicRingVisualizer(self.metadata, self.planets_list, self.resilience)
+        viz = RelicRingVisualizer(self.config_path)
         viz.run()
 
 
