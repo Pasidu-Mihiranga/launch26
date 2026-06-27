@@ -37,12 +37,21 @@ def euclidean_heuristic(graph: NetworkGraph, current_id: str, dest_id: str) -> f
     
     return straight_line_dist / meta.speed_of_light_kms
 
-def dijkstra(graph: NetworkGraph, source_id: str, dest_id: str) -> RouteResult:
+def dijkstra(
+    graph: NetworkGraph, 
+    source_id: str, 
+    dest_id: str, 
+    blocked_nodes: Optional[set[str]] = None, 
+    blocked_edges: Optional[set[tuple[str, str]]] = None
+) -> RouteResult:
     """
     Finds the shortest latency path between source and destination using Dijkstra's algorithm.
     Cumulative path cost represents the total accumulated latency (seconds).
     """
     if source_id not in graph.planets or dest_id not in graph.planets:
+        return RouteResult(path=[], total_latency_s=float('inf'), hop_details=[], algorithm_used="dijkstra", is_reachable=False)
+        
+    if blocked_nodes and (source_id in blocked_nodes or dest_id in blocked_nodes):
         return RouteResult(path=[], total_latency_s=float('inf'), hop_details=[], algorithm_used="dijkstra", is_reachable=False)
         
     # Priority queue contains tuples of:
@@ -101,6 +110,10 @@ def dijkstra(graph: NetworkGraph, source_id: str, dest_id: str) -> RouteResult:
             
         # Explore neighbors
         for edge in graph.adjacency.get(curr_id, []):
+            if blocked_nodes and edge.dest_id in blocked_nodes:
+                continue
+            if blocked_edges and (curr_id, edge.dest_id) in blocked_edges:
+                continue
             dest_planet = graph.planets.get(edge.dest_id)
             if not dest_planet or not dest_planet.is_active:
                 continue
@@ -169,12 +182,21 @@ def dijkstra(graph: NetworkGraph, source_id: str, dest_id: str) -> RouteResult:
             
     return RouteResult(path=[], total_latency_s=float('inf'), hop_details=[], algorithm_used="dijkstra", is_reachable=False)
 
-def a_star(graph: NetworkGraph, source_id: str, dest_id: str) -> RouteResult:
+def a_star(
+    graph: NetworkGraph, 
+    source_id: str, 
+    dest_id: str, 
+    blocked_nodes: Optional[set[str]] = None, 
+    blocked_edges: Optional[set[tuple[str, str]]] = None
+) -> RouteResult:
     """
     Finds the shortest latency path between source and destination using the A* Search algorithm
     guided by the admissible Euclidean heuristic.
     """
     if source_id not in graph.planets or dest_id not in graph.planets:
+        return RouteResult(path=[], total_latency_s=float('inf'), hop_details=[], algorithm_used="a_star", is_reachable=False)
+        
+    if blocked_nodes and (source_id in blocked_nodes or dest_id in blocked_nodes):
         return RouteResult(path=[], total_latency_s=float('inf'), hop_details=[], algorithm_used="a_star", is_reachable=False)
         
     meta = graph.metadata
@@ -220,6 +242,10 @@ def a_star(graph: NetworkGraph, source_id: str, dest_id: str) -> RouteResult:
             
         # Explore neighbors
         for edge in graph.adjacency.get(curr_id, []):
+            if blocked_nodes and edge.dest_id in blocked_nodes:
+                continue
+            if blocked_edges and (curr_id, edge.dest_id) in blocked_edges:
+                continue
             dest_planet = graph.planets.get(edge.dest_id)
             if not dest_planet or not dest_planet.is_active:
                 continue
