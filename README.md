@@ -21,8 +21,7 @@ An interplanetary routing protocol simulator that models data packet transmissio
 - [The 6-Planet Universe](#the-6-planet-universe)
 - [Demo Video Guide](#demo-video-guide)
 - [Test Suite](#test-suite)
-- [Team](#team)
-- [License & Acknowledgements](#license)
+- [Key Innovations](#key-innovations)
 
 ## Project Objectives
 
@@ -268,21 +267,43 @@ tests/test_resilience.py - 3 tests (kill/revive, DTN queue fallback)
 tests/test_codec.py      - 11 tests (base conversion, round-trips, spec examples, hop_log)
 ```
 
-## Team
+## Key Innovations
 
-| Role | Responsibilities |
-|---|---|
-| **Member 1:** Data & Physics Engineer | `config_parser.py`, `physics_engine.py` |
-| **Member 2:** Routing & Resilience Architect | `graph_builder.py`, `routing_engine.py`, `resilience_engine.py` |
-| **Member 3:** Protocol & UI Developer | `packet_codec.py`, `visualizer.py`, `main.py`, `README.md` |
+### 1. Interactive Judge Mode
+A dedicated evaluation mode that visualizes the routing process step-by-step with a live sequence indicator, making algorithm execution transparent and easy to verify during demonstrations.
 
-## License
+### 2. Live Routing Engine Visualization
+Displays real-time routing statistics including the selected algorithm, visited nodes, explored edges, execution time, and route source (Fresh Search or Cache) without relying on terminal output.
 
-MIT License
+### 3. Dynamic Chaos Recovery
+Supports real-time node failures with automatic route recalculation, allowing packets to continue through alternative paths whenever a valid route exists.
 
-## Acknowledgements
+### 4. Intelligent Endpoint Failure Handling
+Distinguishes endpoint failures from routing failures by blocking transmissions when the source or destination is offline and aborting active transmissions if an endpoint becomes unavailable mid-flight.
 
-Developed for the IEEE Computer Society Launch 26 Phase 01 Challenge.
+### 5. Interactive Planet Inspection
+Provides hover-based inspection of each planet, exposing physical properties, atmospheric parameters, codex base, tower information, coordinates, and operational status.
+
+### 6. Multi-Base Packet Codec
+Implements planetary Base-N encoding and decoding, allowing payloads to be translated between ASCII and each planet's native numerical base while preserving data integrity.
+
+### 7. Scientific Latency Visualization
+Separates total latency into Void, Fiber, Tower, and Atmospheric components, allowing users to understand how each physical factor contributes to transmission delay.
+
+### 8. Real-Time Hop Analytics
+Records every transmission hop, including entry tower, exit tower, latency contribution, and planetary transitions, providing complete packet journey traceability.
+
+### 9. Modular Routing Architecture
+Separates configuration parsing, physics calculations, graph construction, routing, resilience management, packet encoding, and visualization into independent modules for maintainability and extensibility.
+
+### 10. Interactive Chaos Testing Environment
+Allows live node failures, network recovery, rerouting demonstrations, and resilience validation without restarting the simulation.
+
+### 11. Professional Industrial Interface
+Uses an industrial-inspired control panel with interactive visual feedback, animated packet movement, route highlighting, live status indicators, and structured telemetry panels.
+
+### 12. Automated Transmission Reporting
+Automatically generates detailed transmission reports summarizing packet information, routing path, latency analysis, and delivery status for verification and debugging.
 
 ## Conclusion
 
