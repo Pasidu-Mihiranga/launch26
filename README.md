@@ -32,28 +32,26 @@ An interplanetary routing protocol simulator that models data packet transmissio
 - Verify routing algorithms step-by-step for judges.
 - Support interactive chaos testing through live node failures.
 
-## Quick Start
+## 🚀 FOR JUDGES: How to Evaluate (2 Simple Steps)
 
-### Prerequisites
-- Python 3.10+
-- pygame-ce (`pip install pygame-ce`)
-
-### Installation
+**Step 1: Install Dependencies**
 ```bash
 pip install pygame-ce pytest
 ```
 
-### Running the Demo
+**Step 2: Run the Interactive Demo (GUI)**
 ```bash
-# Interactive GUI mode (recommended for demo video)
 python relic-ring-protocol/src/main.py
+```
+*(This launches the Pygame Visualizer which visually proves all M1, M2, M3, and M4 requirements).*
 
-# Terminal-only mode (all milestones verified)
-python relic-ring-protocol/src/main.py --headless
-
-# Run all tests
+---
+**Optional: Run the Test Suite (25 Automated Tests)**
+To mathematically verify our $O(1)$ angular physics logic and $O(1)$ failovers:
+```bash
 python -m pytest relic-ring-protocol/tests/ -v
 ```
+---
 
 ## Technology Stack
 
