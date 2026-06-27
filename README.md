@@ -3,9 +3,35 @@
 > **IEEE Computer Society - Launch 26 Phase 01 Challenge**  
 > University of Kelaniya
 
-An interplanetary routing protocol simulator that models data packet transmission across the Zeta-26 star system - a 6-planet network with Base-N codex translations, multi-hop latency calculations, and chaos-resilient routing.
+An interplanetary routing protocol simulator that models data packet transmission across the Zeta-26 star system - a 6-planet network with Base-N codex translations, multi-hop latency calculations, and chaos-resilient routing. Includes a dedicated **Judge Mode** for step-by-step routing verification.
 
 ![Packet Transmission Simulation](screenshots/packet-transmission.png)
+*(Demo GIF: Replace this with `![Demo](screenshots/demo.gif)` once recorded)*
+
+## Table of Contents
+- [Project Objectives](#project-objectives)
+- [Quick Start](#quick-start)
+- [Technology Stack](#technology-stack)
+- [Features Implemented](#features-implemented)
+- [Performance Metrics](#performance-metrics)
+- [Architecture & Project Structure](#architecture)
+- [Source Files](#source-files)
+- [Algorithm Justification](#algorithm-justification)
+- [Physical Constants](#physical-constants)
+- [The 6-Planet Universe](#the-6-planet-universe)
+- [Demo Video Guide](#demo-video-guide)
+- [Test Suite](#test-suite)
+- [Team](#team)
+- [License & Acknowledgements](#license)
+
+## Project Objectives
+
+- Simulate interplanetary packet routing across a customized star system.
+- Model realistic communication latency using strict physics equations.
+- Demonstrate fault-tolerant routing algorithms (Dijkstra and A*).
+- Visualize packet transmission and live network state.
+- Verify routing algorithms step-by-step for judges.
+- Support interactive chaos testing through live node failures.
 
 ## Quick Start
 
@@ -30,6 +56,14 @@ python relic-ring-protocol/src/main.py --headless
 python -m pytest relic-ring-protocol/tests/ -v
 ```
 
+## Technology Stack
+
+- **Python 3.10**
+- **pygame-ce** (High-performance UI rendering)
+- **pytest** (Test suite)
+- **dataclasses** (Strict data modeling)
+- **heapq** (Optimized priority queues for routing)
+
 ## Features Implemented
 
 ### 1. Robust Network & Physics Modeling
@@ -39,7 +73,7 @@ python -m pytest relic-ring-protocol/tests/ -v
 
 ### 2. Advanced Routing & Resilience
 - **Dijkstra & A* (OSPF Standard)**: Cross-validated shortest-path algorithms. A* utilizes a provably admissible heuristic based on the speed of light.
-- **Yen's K=3 Shortest Paths**: Pre-computes alternative routes for O(1) failover when chaos events strike.
+- **Dynamic Rerouting & Failover**: In Normal Mode, the system leverages cached alternative routes when possible. In **Judge Mode**, the system deliberately clears the cache and forces a fresh Dijkstra/A* search to transparently demonstrate live dynamic routing when chaos events strike.
 - **Strict Endpoint Failure Logic**: Simulates transmission blockage if the source/destination is offline during pre-flight checks, and supports **mid-flight aborts** if endpoints are killed while a packet is actively in transit.
 
 ### 3. Industrial Skeuomorphism UI (Pygame)
@@ -65,6 +99,14 @@ python -m pytest relic-ring-protocol/tests/ -v
 ![Successful Transmission Summary](screenshots/transmission-summary.png)
 - **Auto-Reports**: Generates `.txt` reports in the `reports/` folder capturing the entire journey summary per packet.
 
+## Performance Metrics
+
+- **Planets:** 6
+- **Routing Algorithms:** 2 (Dijkstra, A*)
+- **Cross Validation:** 30 directed routes
+- **Automated Tests:** 25
+- **Average Route Computation:** < 1 ms
+
 ## Architecture
 
 The system is a modular 9-phase pipeline:
@@ -85,7 +127,7 @@ universe-config.json
 [4. Routing Engine] --> Dijkstra + A* (cross-validated)
         |
         v
-[5. Resilience Engine] --> Yen's K=3 + Kill/Revive + DTN
+[5. Resilience Engine] --> Dynamic Rerouting + DTN
         |
         v
 [6. Packet Codec] --> Base-N <-> ASCII translation + hop_log
@@ -100,21 +142,27 @@ universe-config.json
 [9. Test Suite] --> 25 automated tests
 ```
 
-### Module Dependency Graph
+### Project Structure
 ```
-config_parser.py  <-- physics_engine.py
-       |                    |
-       v                    v
-graph_builder.py --> routing_engine.py
-                           |
-                           v
-                  resilience_engine.py
-                           |
-                           v
-                    packet_codec.py
-                           |
-                           v
-                    visualizer.py <-- main.py
+Launch26/
+├── relic-ring-protocol/
+│   ├── src/
+│   │   ├── config_parser.py
+│   │   ├── physics_engine.py
+│   │   ├── graph_builder.py
+│   │   ├── routing_engine.py
+│   │   ├── resilience_engine.py
+│   │   ├── packet_codec.py
+│   │   ├── visualizer.py
+│   │   └── main.py
+│   ├── tests/
+│   │   └── ...
+│   └── universe-config.json
+├── screenshots/
+│   └── ...
+├── reports/
+│   └── ...
+└── README.md
 ```
 
 ## Source Files
@@ -125,7 +173,7 @@ graph_builder.py --> routing_engine.py
 | `src/physics_engine.py` | Implements L, Tv, Tp formulas with 9-decimal precision |
 | `src/graph_builder.py` | Builds adjacency list, finds optimal tower pairs, detects bridges |
 | `src/routing_engine.py` | Dijkstra + A* with shared `_build_hop_log_entry()` utility |
-| `src/resilience_engine.py` | Yen's K=3 shortest paths, kill/revive nodes, DTN queue |
+| `src/resilience_engine.py` | Routing failover logic, kill/revive nodes, DTN queue |
 | `src/packet_codec.py` | Base-N translators, Packet schema, hop_log enrichment, TransmissionStatus |
 | `src/visualizer.py` | Pygame Industrial Skeuomorphism interactive UI |
 | `src/main.py` | Demo orchestrator for M1-M4 milestones |
@@ -147,9 +195,6 @@ The A* heuristic `h(n) = straight_line_distance(n, dest) / C` is **provably admi
 5. Since h(n) never overestimates, A* is optimal
 
 **Verification:** All 30 directed pairs cross-validated: Dijkstra cost == A* cost.
-
-### Yen's K=3 for O(1) Failover
-Pre-computing 3 shortest paths per source-destination pair enables instant failover when a node is killed during the Chaos Test, without re-running Dijkstra at failure time.
 
 ## Physical Constants
 
@@ -219,7 +264,7 @@ If the Source or Destination node is killed *before* a transmission starts, the 
 ```
 tests/test_physics.py    - 5 tests (void distance, travel time, tower positions, crust transit)
 tests/test_routing.py    - 6 tests (graph building, Dijkstra, A*, cross-validation, unreachable)
-tests/test_resilience.py - 3 tests (Yen's K=3, kill/revive, DTN queue)
+tests/test_resilience.py - 3 tests (kill/revive, DTN queue fallback)
 tests/test_codec.py      - 11 tests (base conversion, round-trips, spec examples, hop_log)
 ```
 
@@ -230,3 +275,22 @@ tests/test_codec.py      - 11 tests (base conversion, round-trips, spec examples
 | **Member 1:** Data & Physics Engineer | `config_parser.py`, `physics_engine.py` |
 | **Member 2:** Routing & Resilience Architect | `graph_builder.py`, `routing_engine.py`, `resilience_engine.py` |
 | **Member 3:** Protocol & UI Developer | `packet_codec.py`, `visualizer.py`, `main.py`, `README.md` |
+
+## License
+
+MIT License
+
+## Acknowledgements
+
+Developed for the IEEE Computer Society Launch 26 Phase 01 Challenge.
+
+## Conclusion
+
+The Relic Ring Protocol simulator demonstrates:
+- Accurate latency modeling
+- Dynamic routing algorithms
+- Chaos resilience & live failover
+- Interactive visualization
+- Base-N protocol encoding
+
+...while maintaining a robust, modular architecture and extensive automated testing framework.
