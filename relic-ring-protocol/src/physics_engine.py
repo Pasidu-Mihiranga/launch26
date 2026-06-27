@@ -5,6 +5,8 @@ from typing import Tuple, List
 # (assuming it's in the same directory)
 from config_parser import Planet
 
+ROUNDING_PRECISION = 9
+
 def void_distance(p1: Planet, p2: Planet, scale_unit_km: float) -> float:
     """
     Formula 1: Void Distance (L)
@@ -19,7 +21,7 @@ def void_distance(p1: Planet, p2: Planet, scale_unit_km: float) -> float:
     p2_shell = p2.radius_km + p2.atmosphere_thickness_km
     
     L = center_dist_km - p1_shell - p2_shell
-    return max(L, 0.0)
+    return round(max(L, 0.0), ROUNDING_PRECISION)
 
 def void_travel_time(p1: Planet, p2: Planet, L: float, speed_of_light_kms: float) -> float:
     """
@@ -33,7 +35,8 @@ def void_travel_time(p1: Planet, p2: Planet, L: float, speed_of_light_kms: float
     void_time = L / C
     atm_2_time = (p2.atmosphere_thickness_km * p2.refraction_index) / C
     
-    return atm_1_time + void_time + atm_2_time
+    total_time = atm_1_time + void_time + atm_2_time
+    return round(total_time, ROUNDING_PRECISION)
 
 def tower_positions(planet: Planet) -> List[Tuple[float, float]]:
     """
@@ -51,38 +54,38 @@ def tower_positions(planet: Planet) -> List[Tuple[float, float]]:
         positions.append((tx, ty))
     return positions
 
+def get_optimal_tower_index(planet: Planet, dx: float, dy: float) -> int:
+    """
+    O(1) algorithmic optimization to find the tower facing the target vector.
+    Towers are distributed clockwise from the +y axis. 
+    math.atan2(dx, dy) computes the angle from the +y axis directly.
+    """
+    N = planet.active_towers
+    angle_rad = math.atan2(dx, dy)
+    if angle_rad < 0:
+        angle_rad += 2 * math.pi
+        
+    tower_arc = 2 * math.pi / N
+    # Snap to the closest tower slot
+    index = math.floor((angle_rad + (tower_arc / 2)) / tower_arc) % N
+    return index
+
 def find_closest_tower_pair(p1: Planet, p2: Planet, scale_unit_km: float) -> Tuple[int, int]:
     """
     Line of Sight requirement: The tower pair that minimizes the straight-line 
     void distance between them is used for sending and receiving.
+    
+    Optimized from O(N^2) brute force to O(1) Angular Vector Projection.
     Returns (p1_tower_index, p2_tower_index).
     """
-    towers_1 = tower_positions(p1)
-    towers_2 = tower_positions(p2)
+    # Vector from p1 to p2
+    dx = p2.x - p1.x
+    dy = p2.y - p1.y
     
-    best_dist = float('inf')
-    best_pair = (0, 0)
+    t1 = get_optimal_tower_index(p1, dx, dy)
+    t2 = get_optimal_tower_index(p2, -dx, -dy)  # Vector from p2 to p1 is exactly opposite
     
-    # Absolute positions of planets
-    abs_p1_x = p1.x * scale_unit_km
-    abs_p1_y = p1.y * scale_unit_km
-    abs_p2_x = p2.x * scale_unit_km
-    abs_p2_y = p2.y * scale_unit_km
-
-    for i, (tx1, ty1) in enumerate(towers_1):
-        t1_abs_x = abs_p1_x + tx1
-        t1_abs_y = abs_p1_y + ty1
-        for j, (tx2, ty2) in enumerate(towers_2):
-            t2_abs_x = abs_p2_x + tx2
-            t2_abs_y = abs_p2_y + ty2
-            
-            # Distance between tower i on p1 and tower j on p2
-            dist = math.sqrt((t2_abs_x - t1_abs_x)**2 + (t2_abs_y - t1_abs_y)**2)
-            if dist < best_dist:
-                best_dist = dist
-                best_pair = (i, j)
-                
-    return best_pair
+    return (t1, t2)
 
 def crust_transit_time(planet: Planet, entry_tower: int, exit_tower: int, 
                        fiber_fraction: float, speed_of_light_kms: float, 
@@ -110,4 +113,5 @@ def crust_transit_time(planet: Planet, entry_tower: int, exit_tower: int,
     # Processing delay (convert ms to seconds)
     processing_time = m * (tower_delay_ms / 1000.0)
     
-    return fiber_time + processing_time
+    total_time = fiber_time + processing_time
+    return round(total_time, ROUNDING_PRECISION)
