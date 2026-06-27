@@ -1447,10 +1447,13 @@ class RelicRingVisualizer:
         s = self.scale
         pad = int(10 * s)
         
-        # 1. Sequence Indicator Checklist (Overlays Hop Log exactly)
-        cx, cy, check_w, check_h = self.hop_panel_rect
+        # 1. Sequence Indicator Checklist (Floating on right, at Hop Log level)
+        check_w = int(240 * s)
+        check_h = int(140 * s)
+        cx = self.win_w - check_w - pad
+        cy = self.hop_panel_rect[1]
         
-        draw_card_with_screws(self.screen, self.hop_panel_rect, color=COLORS['teal_panel'], title="JUDGE MODE", title_font=self.font_card_title)
+        draw_card_with_screws(self.screen, (cx, cy, check_w, check_h), color=COLORS['teal_panel'], title="JUDGE MODE", title_font=self.font_card_title)
         src_active = self.planets[self.src_dropdown.value].is_active
         dst_active = self.planets[self.dst_dropdown.value].is_active
         
@@ -1481,15 +1484,14 @@ class RelicRingVisualizer:
             self.screen.blit(txt, (cx + 15, y_offset))
             y_offset += int(18 * s)
             
-        # 2. Routing Engine Panel (Bottom right - overlays right half of Codec panel exactly)
-        codec_x, codec_y, codec_w, codec_h = self.codec_panel_rect
-        half_w = (codec_w - pad) // 2
-        rx = codec_x + half_w + pad
-        ry = codec_y
-        rw = half_w
-        rh = codec_h
+        # 2. Routing Engine Panel (Floating on bottom right)
+        panel_w = int(240 * s)
+        panel_h = int(160 * s)
         
-        draw_card_with_screws(self.screen, (rx, ry, rw, rh), color=COLORS['teal_panel'], title="ROUTING ENGINE", title_font=self.font_card_title)
+        rx = self.win_w - panel_w - pad
+        ry = self.win_h - int(CONTROL_H * s) - panel_h - pad
+        
+        draw_card_with_screws(self.screen, (rx, ry, panel_w, panel_h), color=COLORS['teal_panel'], title="ROUTING ENGINE", title_font=self.font_card_title)
         
         if self.current_route:
             r = self.current_route
