@@ -14,6 +14,7 @@ import os
 import json
 from datetime import datetime
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import List, Dict, Any, Optional
 
 from config_parser import Planet, UniverseMetadata
@@ -149,6 +150,15 @@ def from_binary_stream(binary_str: str, base: int) -> List[str]:
 # Section 3: Packet Dataclass (Mandatory Schema)
 # ──────────────────────────────────────────────────────────────────
 
+class TransmissionStatus(Enum):
+    READY = "READY"
+    IN_TRANSIT = "IN_TRANSIT"
+    DELIVERED = "DELIVERED"
+    ABORTED = "ABORTED"
+    BLOCKED = "BLOCKED"
+    UNDELIVERABLE = "UNDELIVERABLE"
+    FAILED = "FAILED"
+
 @dataclass
 class Packet:
     """
@@ -164,6 +174,7 @@ class Packet:
     Additional fields:
         encoded_payload: Current codex representation of the payload
         current_codex:   Current encoding base
+        status:          TransmissionStatus tracking lifecycle
     """
     packet_id: str
     origin_id: str
@@ -173,6 +184,7 @@ class Packet:
     hop_log: List[Dict[str, Any]] = field(default_factory=list)
     encoded_payload: List[str] = field(default_factory=list)
     current_codex: int = 10  # Default ASCII (base 10 representation)
+    status: TransmissionStatus = TransmissionStatus.READY
 
 
 # ──────────────────────────────────────────────────────────────────

@@ -178,6 +178,9 @@ Crust Transit:    Tp = fiber_distance/(0.67*C) + m * 0.007s
 6. Click **REVIVE ALL** to restore
 7. Original optimal route is restored
 
+**Design Decision: Endpoint Failures**
+If the Source or Destination node is killed *before* a transmission starts, the system blocks the request entirely without running routing algorithms. If either endpoint is killed *mid-flight* while a packet is in transit, the protocol instantly aborts the transmission since continuous availability of both endpoints is assumed for the duration of the transfer.
+
 ## Test Suite
 
 25 automated tests across 4 test files:

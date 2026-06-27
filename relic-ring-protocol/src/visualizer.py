@@ -25,7 +25,7 @@ from routing_engine import find_route, RouteResult
 from resilience_engine import ResilienceManager
 from packet_codec import (
     Packet, simulate_packet_journey, ascii_to_codex,
-    codex_to_ascii, get_journey_summary
+    codex_to_ascii, get_journey_summary, TransmissionStatus
 )
 
 
@@ -382,7 +382,7 @@ class RelicRingVisualizer:
         
         self.judge_mode = False
         self.judge_step = 0
-        self.transmission_complete = False
+        self.transmission_status = TransmissionStatus.READY
         self.packet_counter = 0
         
         # Toasts
@@ -691,9 +691,7 @@ class RelicRingVisualizer:
         map_title = self.font_card_title.render("UNIVERSE STAR MAP", True, (150, 160, 170))
         self.screen.blit(map_title, (mx + 10, my + 6))
         
-        # Draw Tooltip overlay if hovering
-        if self.hovered_planet:
-            self._draw_planet_tooltip(self.planets[self.hovered_planet], mouse_pos)
+        # Draw Tooltip overlay if hovering is handled at the end of the render loop
 
     def _draw_edges(self):
         """Draw route edges between connected planets."""
@@ -893,36 +891,43 @@ class RelicRingVisualizer:
         draw_card_with_screws(self.screen, self.packet_status_rect,
                               title="TRANSMISSION STATUS", title_font=self.font_card_title)
         x, y, w, h = self.packet_status_rect
-        if not self.current_route:
-            empty = self.font_mono_sm.render("Awaiting Transmission", True, COLORS['text_muted'])
-            self.screen.blit(empty, (x + 22, y + 35))
-            return
-            
-        if not self.current_route.is_reachable:
-            empty = self.font_body.render("Status: UNDELIVERABLE (No Path)", True, COLORS['led_red'])
-            self.screen.blit(empty, (x + 22, y + 35))
-            return
-            
+        
+        src_id = self.src_dropdown.value
+        dst_id = self.dst_dropdown.value
+        src_active = self.planets[src_id].is_active
+        dst_active = self.planets[dst_id].is_active
+        
+        src_color = COLORS['led_green'] if src_active else COLORS['led_red']
+        src_icon = "✓" if src_active else "✖ Offline"
+        dst_color = COLORS['led_green'] if dst_active else COLORS['led_red']
+        dst_icon = "✓" if dst_active else "✖ Offline"
+        
+        self.screen.blit(self.font_mono_sm.render(f"Source:      {src_id} {src_icon}", True, src_color), (x + 22, y + 35))
+        self.screen.blit(self.font_mono_sm.render(f"Destination: {dst_id} {dst_icon}", True, dst_color), (x + 22, y + 55))
+        
         pkt = self.current_packet
-        if not pkt: return
+        status_color = COLORS['text_muted']
+        if not pkt:
+            status_text = "Awaiting Transmission"
+        else:
+            status_text = pkt.status.value
+            if pkt.status in (TransmissionStatus.BLOCKED, TransmissionStatus.ABORTED, TransmissionStatus.UNDELIVERABLE, TransmissionStatus.FAILED):
+                status_color = COLORS['led_red']
+                if not src_active:
+                    status_text += " (Source Offline)"
+                elif not dst_active:
+                    status_text += " (Destination Offline)"
+            elif pkt.status == TransmissionStatus.DELIVERED:
+                status_color = COLORS['led_green']
+            else:
+                status_color = COLORS['accent']
+                
+        self.screen.blit(self.font_body.render(f"Status: {status_text}", True, status_color), (x + 22, y + 80))
         
-        status = "DELIVERED" if pkt.current_id == pkt.destination_id else "ROUTING"
-        
-        pkt_id_txt = self.font_mono_sm.render(f"Packet ID: #{pkt.packet_id}", True, COLORS['text_muted'])
-        self.screen.blit(pkt_id_txt, (x + 22, y + 35))
-        
-        status_txt = self.font_body.render(f"Status: {status}", True, COLORS['accent'])
-        self.screen.blit(status_txt, (x + 22, y + 55))
-        
-        route = self.current_route
-        if route:
-            latency = f"Total Latency: {route.total_latency_s:.5f}s"
-            lat_txt = self.font_mono_sm.render(latency, True, COLORS['text_primary'])
-            self.screen.blit(lat_txt, (x + 22, y + 75))
-            
-            alg = f"Algorithm: {route.algorithm_used.upper()}"
-            alg_txt = self.font_mono_sm.render(alg, True, COLORS['text_primary'])
-            self.screen.blit(alg_txt, (x + 22, y + 95))
+        if pkt and pkt.status not in (TransmissionStatus.BLOCKED, TransmissionStatus.ABORTED):
+            self.screen.blit(self.font_mono_sm.render(f"Packet ID: #{pkt.packet_id}", True, COLORS['text_muted']), (x + 22, y + 105))
+            if self.current_route:
+                self.screen.blit(self.font_mono_sm.render(f"Latency: {self.current_route.total_latency_s:.5f}s", True, COLORS['text_primary']), (x + 22, y + 125))
 
     def _draw_universe_meta_panel(self):
         """Draw the UNIVERSE METRICS panel."""
@@ -1164,19 +1169,38 @@ class RelicRingVisualizer:
         if src == dst:
             return
 
+        # Pre-flight endpoint validation
+        if not self.planets[src].is_active or not self.planets[dst].is_active:
+            self.transmission_status = TransmissionStatus.BLOCKED
+            self.packet_counter += 1
+            self.current_packet = Packet(
+                packet_id=f"{self.packet_counter:03d}",
+                origin_id=src,
+                destination_id=dst,
+                current_id=src,
+                payload=payload,
+                status=TransmissionStatus.BLOCKED
+            )
+            self.current_route = None
+            self.anim_active = False
+            return
+
         # Get route
         route = self.resilience.get_route(src, dst)
         if route is None:
             self.current_route = None
-            self.current_packet = None
+            self.transmission_status = TransmissionStatus.UNDELIVERABLE
+            if self.current_packet:
+                self.current_packet.status = TransmissionStatus.UNDELIVERABLE
             return
 
         self.current_route = route
+        self.transmission_status = TransmissionStatus.IN_TRANSIT
 
         # Simulate packet journey
         try:
             if self.judge_mode and self.judge_step == 2:
-                self.judge_step = 3
+                self.judge_step = 5  # Step 3, 4, 5 complete instantly on re-route
                 
             packet = simulate_packet_journey(payload, route, self.planets, self.metadata)
             self.packet_counter += 1
@@ -1205,10 +1229,6 @@ class RelicRingVisualizer:
 
     def _action_kill_node(self, planet_id):
         """Kill a planet node for Chaos Test."""
-        if planet_id == self.src_dropdown.value or planet_id == self.dst_dropdown.value:
-            print(f"[WARN] Cannot kill source/destination node: {planet_id}")
-            return
-
         try:
             log = self.resilience.kill_node(planet_id)
             self.planets[planet_id].is_active = False
@@ -1218,18 +1238,31 @@ class RelicRingVisualizer:
             print(f"  Convergence: {log.get('convergence_time_ms', 0):.2f}ms")
             self._add_toast(f"Killed {planet_id}", "error")
 
-            # Judge Mode vs Auto-reroute
+            # Check if this kill affects the current transmission endpoints
+            if self.current_packet:
+                if planet_id == self.current_packet.origin_id or planet_id == self.current_packet.destination_id:
+                    self.current_packet.status = TransmissionStatus.ABORTED
+                    self.transmission_status = TransmissionStatus.ABORTED
+                    self.anim_active = False
+                    if self.current_route:
+                        self.current_route.is_reachable = False
+                    self._add_toast("Transmission Aborted", "error")
+                    return
+
+            # Judge Mode vs Auto-reroute for intermediate nodes
             if self.judge_mode:
                 if self.current_route and planet_id in self.current_route.path:
                     self.current_route.is_reachable = False
                     if self.current_packet:
                         self.current_packet.destination_id = "UNDELIVERABLE"
+                        self.current_packet.status = TransmissionStatus.BLOCKED
+                    self.transmission_status = TransmissionStatus.BLOCKED
                     self.anim_active = False
                     self.judge_step = 2
                     self._add_toast("ROUTE INVALID. Waiting for recomputation...", "error")
             else:
                 # Seamless Auto-reroute if there's a current route
-                if self.current_route:
+                if self.current_route and planet_id in self.current_route.path:
                     self._action_send_packet()
         except Exception as e:
             print(f"[ERROR] Kill failed: {e}")
@@ -1270,7 +1303,7 @@ class RelicRingVisualizer:
                 active_toasts.append(t)
                 
                 # Draw
-                color = COLORS['led_green'] if t['type'] == 'success' else (COLORS['led_red'] if t['type'] == 'error' else COLORS['text_primary'])
+                color = COLORS['led_green'] if t['type'] == 'success' else (COLORS['led_red'] if t['type'] == 'error' else COLORS['header_text'])
                 txt = self.font_body.render(t["msg"], True, color)
                 
                 # Fade out last 30 frames
@@ -1310,6 +1343,11 @@ class RelicRingVisualizer:
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         running = False
+                        
+                    if self.transmission_status == TransmissionStatus.DELIVERED:
+                        if event.type == pygame.MOUSEBUTTONDOWN:
+                            self.transmission_status = TransmissionStatus.READY
+                        continue
 
                     if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                         if self.kill_mode:
@@ -1367,7 +1405,9 @@ class RelicRingVisualizer:
                         self.anim_progress = 1.0
                         self.anim_active = False
                         if self.current_route and self.current_route.is_reachable:
-                            self.transmission_complete = True
+                            if self.current_packet:
+                                self.current_packet.status = TransmissionStatus.DELIVERED
+                            self.transmission_status = TransmissionStatus.DELIVERED
 
                 # -- Draw everything --
                 self.screen.fill(COLORS['chassis'])
@@ -1381,10 +1421,14 @@ class RelicRingVisualizer:
                 self._draw_codec_panel()
                 self._draw_control_bar()
                 
+                # Draw Tooltips on top of panels
+                if self.hovered_planet:
+                    self._draw_planet_tooltip(self.planets[self.hovered_planet], pygame.mouse.get_pos())
+                
                 if self.judge_mode:
                     self._draw_judge_panels()
                     
-                if self.transmission_complete:
+                if self.transmission_status == TransmissionStatus.DELIVERED:
                     self._draw_transmission_complete_dialog()
 
                 self._draw_toasts()
@@ -1409,19 +1453,32 @@ class RelicRingVisualizer:
         cy = int(HEADER_H * s) + pad
         
         draw_card_with_screws(self.screen, (cx, cy, check_w, check_h), title="JUDGE MODE", title_font=self.font_card_title)
+        src_active = self.planets[self.src_dropdown.value].is_active
+        dst_active = self.planets[self.dst_dropdown.value].is_active
         
-        steps = [
-            "Kill Node",
-            "Route Invalid",
-            "Run Dijkstra/A*",
-            "Route Found",
-            "Resume Transmission"
-        ]
+        if not src_active:
+            steps = ["Kill Node", "Source Offline", "Transmission Blocked"]
+        elif not dst_active:
+            steps = ["Kill Node", "Destination Offline", "Transmission Blocked"]
+        else:
+            steps = [
+                "Kill Node",
+                "Route Invalid",
+                "Run Dijkstra/A*",
+                "Route Found",
+                "Resume Transmission"
+            ]
         
         y_offset = cy + int(30 * s)
         for i, text in enumerate(steps, 1):
-            color = COLORS['led_green'] if self.judge_step >= i else COLORS['text_muted']
-            box = "[✓]" if self.judge_step >= i else "[ ]"
+            if not src_active or not dst_active:
+                # In offline sequences, all displayed steps are complete
+                is_checked = True
+            else:
+                is_checked = self.judge_step >= i
+                
+            color = COLORS['led_green'] if is_checked else COLORS['text_muted']
+            box = "[✓]" if is_checked else "[ ]"
             txt = self.font_mono_sm.render(f"{box} STEP {i}: {text}", True, color)
             self.screen.blit(txt, (cx + 15, y_offset))
             y_offset += int(18 * s)
@@ -1478,7 +1535,11 @@ class RelicRingVisualizer:
         overlay.fill((0, 0, 0, 150))
         self.screen.blit(overlay, (0, 0))
         
-        draw_card_with_screws(self.screen, (cx, cy, cw, ch), title="TRANSMISSION COMPLETE", title_font=self.font_card_title)
+        pygame.draw.rect(self.screen, COLORS['panel'], (cx, cy, cw, ch), border_radius=12)
+        pygame.draw.rect(self.screen, COLORS['shadow_deep'], (cx, cy, cw, ch), 2, border_radius=12)
+        
+        title_surf = self.font_card_title.render("TRANSMISSION COMPLETE", True, COLORS['text_muted'])
+        self.screen.blit(title_surf, (cx + 22, cy + 15))
         
         pkt = self.current_packet
         r = self.current_route
