@@ -119,16 +119,16 @@ graph_builder.py --> routing_engine.py
 
 ## Source Files
 
-| File | Purpose | Owner |
-|---|---|---|
-| `src/config_parser.py` | Parses `universe-config.json` into typed dataclasses with validation | Member 1 |
-| `src/physics_engine.py` | Implements L, Tv, Tp formulas with 9-decimal precision | Member 1 |
-| `src/graph_builder.py` | Builds adjacency list, finds optimal tower pairs, detects bridges | Member 2 |
-| `src/routing_engine.py` | Dijkstra + A* with shared `_build_hop_log_entry()` utility | Member 2 |
-| `src/resilience_engine.py` | Yen's K=3 shortest paths, kill/revive nodes, DTN queue | Member 2 |
-| `src/packet_codec.py` | Base-N translators, Packet schema, hop_log enrichment, TransmissionStatus | Member 3 |
-| `src/visualizer.py` | Pygame Industrial Skeuomorphism interactive UI | Member 3 |
-| `src/main.py` | Demo orchestrator for M1-M4 milestones | Member 3 |
+| File | Purpose |
+|---|---|
+| `src/config_parser.py` | Parses `universe-config.json` into typed dataclasses with validation |
+| `src/physics_engine.py` | Implements L, Tv, Tp formulas with 9-decimal precision |
+| `src/graph_builder.py` | Builds adjacency list, finds optimal tower pairs, detects bridges |
+| `src/routing_engine.py` | Dijkstra + A* with shared `_build_hop_log_entry()` utility |
+| `src/resilience_engine.py` | Yen's K=3 shortest paths, kill/revive nodes, DTN queue |
+| `src/packet_codec.py` | Base-N translators, Packet schema, hop_log enrichment, TransmissionStatus |
+| `src/visualizer.py` | Pygame Industrial Skeuomorphism interactive UI |
+| `src/main.py` | Demo orchestrator for M1-M4 milestones |
 
 ## Algorithm Justification
 
