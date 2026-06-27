@@ -6,7 +6,7 @@
 An interplanetary routing protocol simulator that models data packet transmission across the Zeta-26 star system - a 6-planet network with Base-N codex translations, multi-hop latency calculations, and chaos-resilient routing. Includes a dedicated **Judge Mode** for step-by-step routing verification.
 
 ![Packet Transmission Simulation](screenshots/packet-transmission.png)
-*(Demo GIF: Replace this with `![Demo](screenshots/demo.gif)` once recorded)*
+![Demo](screenshots/demo.gif)
 
 ## Table of Contents
 - [Project Objectives](#project-objectives)
