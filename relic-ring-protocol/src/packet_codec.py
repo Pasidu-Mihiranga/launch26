@@ -10,6 +10,9 @@ Fixes Audit Issues:
 """
 
 import math
+import os
+import json
+from datetime import datetime
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 
@@ -123,6 +126,25 @@ def translate_payload(encoded_values: List[str], from_base: int, to_base: int) -
     return [int_to_base_n(base_n_to_int(val, from_base), to_base) for val in encoded_values]
 
 
+def to_binary_stream(encoded_list: List[str], base: int) -> str:
+    """
+    Converts a list of Base-N encoded strings into a continuous binary bit stream.
+    Used for simulating the actual transmission over the void.
+    Assumes 8 bits per character since original data is ASCII.
+    """
+    return "".join(f"{base_n_to_int(val, base):08b}" for val in encoded_list)
+
+
+def from_binary_stream(binary_str: str, base: int) -> List[str]:
+    """
+    Reconstructs a list of Base-N strings from a continuous binary stream.
+    """
+    if not binary_str:
+        return []
+    chunks = [binary_str[i:i+8] for i in range(0, len(binary_str), 8)]
+    return [int_to_base_n(int(chunk, 2), base) for chunk in chunks if chunk]
+
+
 # ──────────────────────────────────────────────────────────────────
 # Section 3: Packet Dataclass (Mandatory Schema)
 # ──────────────────────────────────────────────────────────────────
@@ -143,6 +165,7 @@ class Packet:
         encoded_payload: Current codex representation of the payload
         current_codex:   Current encoding base
     """
+    packet_id: str
     origin_id: str
     destination_id: str
     current_id: str
@@ -159,7 +182,9 @@ class Packet:
 def build_hop_log_entry(
     routing_hop: Dict[str, Any],
     payload_in_codex: List[str],
-    codex_base: int
+    codex_base: int,
+    binary_stream: str = "",
+    payload_ascii: str = ""
 ) -> Dict[str, Any]:
     """
     Constructs a complete hop_log entry by merging routing engine's
@@ -178,6 +203,8 @@ def build_hop_log_entry(
     entry = dict(routing_hop)  # Shallow copy to avoid mutating the original
     entry["payload_in_codex"] = list(payload_in_codex)
     entry["codex_base"] = codex_base
+    entry["binary_stream"] = binary_stream
+    entry["payload_ascii"] = payload_ascii
     return entry
 
 
@@ -185,7 +212,9 @@ def build_destination_hop_entry(
     planet: Planet,
     entry_tower: int,
     payload_in_codex: List[str],
-    tower_delay_ms: float
+    tower_delay_ms: float,
+    binary_stream: str = "",
+    payload_ascii: str = ""
 ) -> Dict[str, Any]:
     """
     Constructs the FINAL hop_log entry for the destination planet.
@@ -212,8 +241,14 @@ def build_destination_hop_entry(
         "crust_total_s": processing_time_s,
         "void_distance_km": 0.0,
         "void_time_s": 0.0,
+        "pure_void_time_s": 0.0,
+        "atmosphere_time_s": 0.0,
         "payload_in_codex": list(payload_in_codex),
-        "codex_base": planet.codex
+        "codex_base": planet.codex,
+        "binary_stream": binary_stream,
+        "payload_ascii": payload_ascii,
+        "next_hop": "---",
+        "next_hop_entry_tower": entry_tower
     }
 
 
@@ -257,6 +292,7 @@ def simulate_packet_journey(
     # Initialize the packet at the origin
     origin_planet = planets[path[0]]
     packet = Packet(
+        packet_id="000", # Will be updated by visualizer
         origin_id=path[0],
         destination_id=path[-1],
         current_id=path[0],
@@ -270,12 +306,16 @@ def simulate_packet_journey(
         packet.encoded_payload = encoded
         packet.current_codex = origin_planet.codex
 
+        binary_stream = to_binary_stream(encoded, origin_planet.codex)
+        
         # Build destination hop entry (FIX #1)
         dest_entry = build_destination_hop_entry(
             origin_planet,
             entry_tower=0,
             payload_in_codex=encoded,
-            tower_delay_ms=metadata.tower_processing_delay_ms
+            tower_delay_ms=metadata.tower_processing_delay_ms,
+            binary_stream=binary_stream,
+            payload_ascii=payload
         )
         packet.hop_log.append(dest_entry)
         packet.current_id = path[0]
@@ -317,10 +357,15 @@ def simulate_packet_journey(
             hop_codex_base = current_base
 
         # Build the enriched hop_log entry (FIX #2: adds payload_in_codex)
+        binary_stream = to_binary_stream(hop_codex_values, hop_codex_base)
+        payload_ascii = codex_to_ascii(hop_codex_values, hop_codex_base)
+        
         enriched_hop = build_hop_log_entry(
             routing_hop=hop,
             payload_in_codex=hop_codex_values,
-            codex_base=hop_codex_base
+            codex_base=hop_codex_base,
+            binary_stream=binary_stream,
+            payload_ascii=payload_ascii
         )
         packet.hop_log.append(enriched_hop)
 
@@ -356,11 +401,15 @@ def simulate_packet_journey(
     else:
         dest_entry_tower = 0
 
+    binary_stream = to_binary_stream(final_encoded, dest_planet.codex)
+
     dest_hop = build_destination_hop_entry(
         dest_planet,
         entry_tower=dest_entry_tower,
         payload_in_codex=final_encoded,
-        tower_delay_ms=metadata.tower_processing_delay_ms
+        tower_delay_ms=metadata.tower_processing_delay_ms,
+        binary_stream=binary_stream,
+        payload_ascii=payload
     )
     packet.hop_log.append(dest_hop)
 
@@ -449,3 +498,60 @@ if __name__ == "__main__":
     print("[PASS] Translate Base 5 -> Base 14")
 
     print("\nAll self-tests passed!")
+
+# ──────────────────────────────────────────────────────────────────
+# Section 6: Report Generation (Bonus Feature)
+# ──────────────────────────────────────────────────────────────────
+
+def generate_transmission_report(packet: Packet, packet_id: str, algorithm: str, total_latency: float) -> str:
+    """
+    Generates and saves a JSON report of the transmission.
+    Returns the file path.
+    """
+    reports_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "reports")
+    os.makedirs(reports_dir, exist_ok=True)
+    
+    # Calculate aggregated latencies
+    fiber_s = sum(h.get("fiber_time_s", 0) for h in packet.hop_log)
+    atmosphere_s = sum(h.get("atmosphere_time_s", 0) for h in packet.hop_log)
+    tower_s = sum(h.get("processing_time_s", 0) for h in packet.hop_log)
+    void_s = sum(h.get("pure_void_time_s", 0) for h in packet.hop_log)
+    
+    report_data = {
+        "packet_id": packet_id,
+        "origin": packet.origin_id,
+        "destination": packet.destination_id,
+        "payload": packet.payload,
+        "route": [h["planet_id"] for h in packet.hop_log],
+        "algorithm": algorithm,
+        "latency": {
+            "fiber_s": round(fiber_s, 9),
+            "atmosphere_s": round(atmosphere_s, 9),
+            "tower_s": round(tower_s, 9),
+            "void_s": round(void_s, 9),
+            "total_s": total_latency
+        },
+        "hop_log": packet.hop_log,
+        "status": "DELIVERED",
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    file_path = os.path.join(reports_dir, f"{packet_id}.json")
+    with open(file_path, "w") as f:
+        json.dump(report_data, f, indent=2)
+        
+    # Also save a human-readable text report
+    txt_path = os.path.join(reports_dir, f"{packet_id}.txt")
+    with open(txt_path, "w") as f:
+        f.write(f"Packet ID: {packet_id}\n")
+        f.write(f"Origin: {packet.origin_id}\n")
+        f.write(f"Destination: {packet.destination_id}\n\n")
+        f.write(f"Route: {' -> '.join(report_data['route'])}\n\n")
+        f.write(f"Fiber:      {fiber_s:.5f} s\n")
+        f.write(f"Atmosphere: {atmosphere_s:.5f} s\n")
+        f.write(f"Tower:      {tower_s:.5f} s\n")
+        f.write(f"Void:       {void_s:.5f} s\n")
+        f.write(f"Total:      {total_latency:.5f} s\n\n")
+        f.write(f"Delivered Successfully\n")
+        
+    return file_path

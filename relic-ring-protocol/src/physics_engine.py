@@ -23,6 +23,16 @@ def void_distance(p1: Planet, p2: Planet, scale_unit_km: float) -> float:
     L = center_dist_km - p1_shell - p2_shell
     return round(max(L, 0.0), ROUNDING_PRECISION)
 
+def atmosphere_travel_time(p1: Planet, p2: Planet, speed_of_light_kms: float) -> Tuple[float, float, float]:
+    """
+    Calculates the time spent traveling through the atmosphere of two planets.
+    Returns (atm_1_time, atm_2_time, total_atm_time) in seconds.
+    """
+    C = speed_of_light_kms
+    atm_1_time = (p1.atmosphere_thickness_km * p1.refraction_index) / C
+    atm_2_time = (p2.atmosphere_thickness_km * p2.refraction_index) / C
+    return round(atm_1_time, ROUNDING_PRECISION), round(atm_2_time, ROUNDING_PRECISION), round(atm_1_time + atm_2_time, ROUNDING_PRECISION)
+
 def void_travel_time(p1: Planet, p2: Planet, L: float, speed_of_light_kms: float) -> float:
     """
     Formula 2: Void Travel Time (Tv)
@@ -31,11 +41,10 @@ def void_travel_time(p1: Planet, p2: Planet, L: float, speed_of_light_kms: float
     Returns time in seconds.
     """
     C = speed_of_light_kms
-    atm_1_time = (p1.atmosphere_thickness_km * p1.refraction_index) / C
+    atm_1_time, atm_2_time, total_atm_time = atmosphere_travel_time(p1, p2, C)
     void_time = L / C
-    atm_2_time = (p2.atmosphere_thickness_km * p2.refraction_index) / C
     
-    total_time = atm_1_time + void_time + atm_2_time
+    total_time = total_atm_time + void_time
     return round(total_time, ROUNDING_PRECISION)
 
 def tower_positions(planet: Planet) -> List[Tuple[float, float]]:

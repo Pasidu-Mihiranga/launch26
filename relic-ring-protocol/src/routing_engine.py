@@ -57,6 +57,10 @@ def _build_hop_log_entry(
     arc_distance = s * (2 * math.pi * planet.radius_km / N)
     fiber_speed = meta.fiber_speed_fraction * meta.speed_of_light_kms
 
+    # Phase 1: Atmosphere delay and pure void separation
+    pure_void_time_s = edge.void_distance_km / meta.speed_of_light_kms
+    atmosphere_time_s = max(0.0, edge.void_travel_time_s - pure_void_time_s)
+
     return {
         "planet_id": planet.id,
         "entry_tower": actual_entry,
@@ -68,7 +72,10 @@ def _build_hop_log_entry(
         "crust_total_s": round(Tp_curr, 9),
         "void_distance_km": round(edge.void_distance_km, 9),
         "void_time_s": round(edge.void_travel_time_s, 9),
+        "pure_void_time_s": round(pure_void_time_s, 9),
+        "atmosphere_time_s": round(atmosphere_time_s, 9),
         "codex_base": planet.codex,
+        "next_hop": edge.dest_id,
         "next_hop_entry_tower": edge.dest_entry_tower
     }
 
