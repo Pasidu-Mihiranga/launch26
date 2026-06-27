@@ -804,17 +804,22 @@ class RelicRingVisualizer:
 
     def _draw_planet_tooltip(self, planet, mouse_pos):
         """Draws a tooltip with detailed planet info."""
+        header_text = f"+---- {planet.id.upper()} ----+"
+        status_text = "ACTIVE" if planet.is_active else "OFFLINE"
+        
         lines = [
-            f"Node  : {planet.id.upper()}",
-            f"Active: {'YES' if planet.is_active else 'NO'}",
-            f"Codex : Base {planet.codex}",
-            f"Atmos : {planet.atmosphere_thickness_km:,.0f}km",
-            f"Refrac: {planet.refraction_index:.2f}",
-            f"Towers: {planet.active_towers}"
+            header_text,
+            f"Base: {planet.codex}",
+            f"Radius: {planet.radius_km:,.0f} km",
+            f"Atmosphere: {planet.atmosphere_thickness_km:,.0f} km",
+            f"Refraction: {planet.refraction_index:.3f}",
+            f"Towers: {planet.active_towers}",
+            f"Coordinates: ({planet.x_coord:,.0f}, {planet.y_coord:,.0f})",
+            f"Status: {status_text}"
         ]
         
-        box_w = int(180 * self.scale)
-        box_h = int(120 * self.scale)
+        box_w = int(240 * self.scale)
+        box_h = int(150 * self.scale)
         box_x = mouse_pos[0] + 15
         box_y = mouse_pos[1] + 15
         
@@ -823,16 +828,21 @@ class RelicRingVisualizer:
         if box_y + box_h > self.win_h: box_y = mouse_pos[1] - box_h - 15
         
         # Tooltip BG
-        pygame.draw.rect(self.screen, COLORS['header_bg'], (box_x, box_y, box_w, box_h), border_radius=6)
+        pygame.draw.rect(self.screen, COLORS['control_bg'], (box_x, box_y, box_w, box_h), border_radius=6)
         pygame.draw.rect(self.screen, COLORS['shadow_deep'], (box_x, box_y, box_w, box_h), 1, border_radius=6)
         
         # Text
-        ty = box_y + 10
+        ty = box_y + 12
         for line in lines:
-            txt = self.font_mono_sm.render(line, True, COLORS['text_primary'] if "Active: YES" not in line else COLORS['led_green'])
-            if "Active: NO" in line:
-                txt = self.font_mono_sm.render(line, True, COLORS['led_red'])
-            self.screen.blit(txt, (box_x + 10, ty))
+            if line == header_text:
+                color = COLORS['accent']
+            elif line.startswith("Status:"):
+                color = COLORS['led_green'] if planet.is_active else COLORS['led_red']
+            else:
+                color = COLORS['header_text']
+                
+            txt = self.font_mono_sm.render(line, True, color)
+            self.screen.blit(txt, (box_x + 12, ty))
             ty += int(16 * self.scale)
 
     def _draw_packet_animation(self):
