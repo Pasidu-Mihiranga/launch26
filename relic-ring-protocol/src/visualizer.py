@@ -365,9 +365,10 @@ class RelicRingVisualizer:
         # Fonts
         self._init_fonts()
 
+        self.judge_mode = False
+        
         # Layout regions
         self._calculate_layout()
-
         # State
         self.current_route = None
         self.current_packet = None
@@ -381,7 +382,6 @@ class RelicRingVisualizer:
         self.anim_speed = 0.008   # per tick (about 3s per hop at 60fps)
         self.anim_path_coords = []
         
-        self.judge_mode = False
         self.judge_step = 0
         self.transmission_status = TransmissionStatus.READY
         self.packet_counter = 0
@@ -514,11 +514,22 @@ class RelicRingVisualizer:
         
         # Row 3: Latency - 28% height
         row3_h = int((body_h - 5 * pad) * 0.28)
-        self.latency_panel_rect = (panel_x, body_top + 3 * pad + row1_h + row2_h, panel_w, row3_h)
         
         # Row 4: Codec - Remaining height
         row4_h = body_h - 5 * pad - row1_h - row2_h - row3_h
-        self.codec_panel_rect = (panel_x, body_top + 4 * pad + row1_h + row2_h + row3_h, panel_w, row4_h)
+        
+        if self.judge_mode:
+            half_p_w = (panel_w - pad) // 2
+            self.latency_panel_rect = (panel_x, body_top + 3 * pad + row1_h + row2_h, half_p_w, row3_h)
+            self.judge_checklist_rect = (panel_x + half_p_w + pad, body_top + 3 * pad + row1_h + row2_h, half_p_w, row3_h)
+            
+            self.codec_panel_rect = (panel_x, body_top + 4 * pad + row1_h + row2_h + row3_h, half_p_w, row4_h)
+            self.routing_engine_rect = (panel_x + half_p_w + pad, body_top + 4 * pad + row1_h + row2_h + row3_h, half_p_w, row4_h)
+        else:
+            self.latency_panel_rect = (panel_x, body_top + 3 * pad + row1_h + row2_h, panel_w, row3_h)
+            self.codec_panel_rect = (panel_x, body_top + 4 * pad + row1_h + row2_h + row3_h, panel_w, row4_h)
+            self.judge_checklist_rect = (0,0,0,0)
+            self.routing_engine_rect = (0,0,0,0)
 
         self.control_rect = (0, self.win_h - ctrl_h, self.win_w, ctrl_h)
 
@@ -1394,6 +1405,7 @@ class RelicRingVisualizer:
                         
                     if self.judge_btn.handle_event(event):
                         self.judge_mode = not self.judge_mode
+                        self._calculate_layout()
                         if self.judge_mode:
                             self.judge_btn.fg_color = COLORS['led_green']
                             self.anim_speed = 0.003
@@ -1457,14 +1469,11 @@ class RelicRingVisualizer:
         pygame.quit()
         
     def _draw_judge_panels(self):
-        """Draws the Routing Engine and Judge Checklist panels as HUDs on the Star Map."""
+        """Draws the Routing Engine and Judge Checklist panels in the lower right."""
         s = self.scale
         
-        # 1. Sequence Indicator Checklist (HUD: Top-Left of Star Map)
-        check_w = int(280 * s)
-        check_h = int(160 * s)
-        cx = self.map_rect[0] + int(20 * s)
-        cy = self.map_rect[1] + int(40 * s)
+        # 1. Sequence Indicator Checklist
+        cx, cy, check_w, check_h = self.judge_checklist_rect
         
         draw_card_with_screws(self.screen, (cx, cy, check_w, check_h), color=COLORS['teal_panel'], title="JUDGE MODE", title_font=self.font_card_title)
         src_active = self.planets[self.src_dropdown.value].is_active
@@ -1497,12 +1506,8 @@ class RelicRingVisualizer:
             self.screen.blit(txt, (cx + 15, y_offset))
             y_offset += int(18 * s)
             
-        # 2. Routing Engine Panel (HUD: Bottom-Left of Star Map)
-        panel_w = int(280 * s)
-        panel_h = int(180 * s)
-        
-        rx = self.map_rect[0] + int(20 * s)
-        ry = self.map_rect[1] + self.map_rect[3] - panel_h - int(20 * s)
+        # 2. Routing Engine Panel
+        rx, ry, panel_w, panel_h = self.routing_engine_rect
         
         draw_card_with_screws(self.screen, (rx, ry, panel_w, panel_h), color=COLORS['teal_panel'], title="ROUTING ENGINE", title_font=self.font_card_title)
         
