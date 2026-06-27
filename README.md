@@ -5,7 +5,7 @@
 
 An interplanetary routing protocol simulator that models data packet transmission across the Zeta-26 star system - a 6-planet network with Base-N codex translations, multi-hop latency calculations, and chaos-resilient routing.
 
-![Packet Transmission Simulation](packet-transmission.png)
+![Packet Transmission Simulation](screenshots/packet-transmission.png)
 
 ## Quick Start
 
@@ -46,23 +46,23 @@ python -m pytest relic-ring-protocol/tests/ -v
 - **Neumorphic Design System**: Uses customized `NeuButton`, drop-shadows, and `draw_card_with_screws` to present a clean, tactile control panel layout.
 - **Hover Tooltips**: Instantly inspect any node's properties (Codex, Towers, Refraction, Active Status) simply by hovering over it on the star map.
 
-![Interactive Planet Information Panel](planet-information-panel.png)
+![Interactive Planet Information Panel](screenshots/planet-information-panel.png)
 - **Interactive Routing Engine**: Live metrics on the bottom-right panel displaying the chosen algorithm, visited nodes, edges checked, and execution time (ms).
 
 ### 4. Special Modes
 - **Judge Mode**: A dedicated mode built specifically for evaluation. Enabling it visually breaks down the transmission lifecycle step-by-step using a dedicated Sequence Indicator Checklist floating on the right side.
 
-![Judge Mode & Routing Engine Visualization](judge-mode-routing-engine.png)
+![Judge Mode & Routing Engine Visualization](screenshots/judge-mode-routing-engine.png)
 - **Chaos Mode**: Click `KILL NODE` and select any planet on the map to take it offline. Instantly triggers dynamic route re-calculation (or transmission aborts depending on endpoint relevance).
 
-![Dynamic Route Recalculation After Node Failure](dynamic-rerouting.png)
+![Dynamic Route Recalculation After Node Failure](screenshots/dynamic-rerouting.png)
 
 ### 5. Deep Packet Inspection & Reporting
 - **Multi-Base Codex Engine**: Translates payloads from Base 10 (ASCII) into planetary Bases (e.g., Base 16, Base 8, Base 14) and logs the exact string sent across the void.
 - **Hop Log**: Visualizes the exact entry and exit towers used on each planet as the packet travels.
 - **Transmission Status Panel**: Replaces binary booleans with a full lifecycle Enum state-machine (`READY`, `BLOCKED`, `IN_TRANSIT`, `DELIVERED`, `ABORTED`, `UNDELIVERABLE`, `FAILED`).
 
-![Successful Transmission Summary](transmission-summary.png)
+![Successful Transmission Summary](screenshots/transmission-summary.png)
 - **Auto-Reports**: Generates `.txt` reports in the `reports/` folder capturing the entire journey summary per packet.
 
 ## Architecture
